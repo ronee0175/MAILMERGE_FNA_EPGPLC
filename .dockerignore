@@ -1,0 +1,12 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+*.db
+.env
+storage/credentials
+storage/uploads
+storage/outputs
+storage/temp
+backup
