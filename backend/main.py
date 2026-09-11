@@ -40,17 +40,19 @@ def db():
     status,
     message,
     pdf_name,
-    created_at
+    created_at,
     attachments
     )""")
     # Upgrade older BO-ID logs databases in place.
-        cols={r[1] for r in c.execute("PRAGMA table_info(logs)").fetchall()}
-if "employee_id" not in cols:
-    c.execute("ALTER TABLE logs ADD COLUMN employee_id")
-if "employee_name" not in cols:
-    c.execute("ALTER TABLE logs ADD COLUMN employee_name")
-if "attachments" not in cols:
-    c.execute("ALTER TABLE logs ADD COLUMN attachments")
+    cols={r[1] for r in c.execute("PRAGMA table_info(logs)").fetchall()}
+    if "employee_id" not in cols:
+        c.execute("ALTER TABLE logs ADD COLUMN employee_id")
+    if "employee_name" not in cols:
+        c.execute("ALTER TABLE logs ADD COLUMN employee_name")
+    if "attachments" not in cols:
+        c.execute("ALTER TABLE logs ADD COLUMN attachments")
+    c.commit()
+    return c
 def ok_email(x): return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$",str(x).strip()))
 
 def norm_field(x):
