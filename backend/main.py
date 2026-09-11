@@ -44,13 +44,13 @@ def db():
     attachments
     )""")
     # Upgrade older BO-ID logs databases in place.
-    cols={r[1] for r in c.execute("PRAGMA table_info(logs)").fetchall()}
-    if "employee_id" not in cols:
-        c.execute("ALTER TABLE logs ADD COLUMN employee_id")
-    if "employee_name" not in cols:
-        c.execute("ALTER TABLE logs ADD COLUMN employee_name")
-    c.commit(); return c
-
+        cols={r[1] for r in c.execute("PRAGMA table_info(logs)").fetchall()}
+if "employee_id" not in cols:
+    c.execute("ALTER TABLE logs ADD COLUMN employee_id")
+if "employee_name" not in cols:
+    c.execute("ALTER TABLE logs ADD COLUMN employee_name")
+if "attachments" not in cols:
+    c.execute("ALTER TABLE logs ADD COLUMN attachments")
 def ok_email(x): return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$",str(x).strip()))
 
 def norm_field(x):
