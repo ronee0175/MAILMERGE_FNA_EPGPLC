@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Mail Marge PDF Mailer - Logs</title><style>body{font-family:Arial;background:#f5f7fa;color:#102a43;margin:0}header{background:white;padding:14px 24px;border-bottom:1px solid #ddd}.wrap{max-width:1200px;margin:35px auto;padding:0 20px}.card{background:white;border:1px solid #d9e2ec;border-radius:12px;padding:22px;overflow:auto}a{color:#102a43}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid #e6edf3;padding:9px;text-align:left;vertical-align:top}th{background:#f7fafc}.btn{display:inline-block;margin-left:10px;padding:8px 14px;border:1px solid #bcccdc;border-radius:8px;text-decoration:none;color:#102a43;font-weight:700;background:#fff}.btn:hover{background:#f7fafc}</style></head><body><header>Mail Marge PDF Mailer</header><div class="wrap"><div class="card"><h2>Logs</h2><p><a href="/">← Back</a><a class="btn" href="/logs/export">Export to Excel</a></p><table><thead><tr><th>Batch</th><th>Row</th><th>Email</th><th>Employee ID</th><th>Name</th><th>Status</th><th>Message</th><th>PDF</th><th>Additional Attachments</th><th>Created</th></tr></thead><tbody>{% for r in rows %}<tr>{% for x in r %}<tbody>
+{% for r in rows %}
+<tr>
+{% for x in r %}
+<td>
+{% if loop.index == 8 and x %}
+<a href="/download/{{ x }}">Download</a>
+{% else %}
+{{ x }}
+{% endif %}
+</td>
+{% endfor %}
+</tr>
+{% endfor %}
+</tbody>{% endfor %}</tr>{% endfor %}</tbody></table></div></div>{% if auto_shutdown %}<script>(function(){function beat(){fetch('/heartbeat',{method:'POST',keepalive:true}).catch(function(){})}beat();setInterval(beat,4000);window.addEventListener('pageshow',beat);window.addEventListener('pagehide',function(){navigator.sendBeacon('/bye')})})();</script>{% endif %}</body></html>
