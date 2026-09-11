@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import datetime,timedelta
 from email.message import EmailMessage
 from io import BytesIO
-import smtplib, zipfile, socket, urllib.parse, shutil, threading, time
+import smtplib, zipfile, socket, urllib.parse, urllib.request, urllib.error, shutil, threading, time
 import pandas as pd
 from openpyxl.styles import Font
 from flask import Flask,render_template,request,redirect,url_for,flash,send_file,jsonify,Response,make_response
@@ -49,10 +49,8 @@ def db():
         c.execute("ALTER TABLE logs ADD COLUMN employee_id")
     if "employee_name" not in cols:
         c.execute("ALTER TABLE logs ADD COLUMN employee_name")
-    if "attachments" not in cols:
-        c.execute("ALTER TABLE logs ADD COLUMN attachments")
-    c.commit()
-    return c
+    c.commit(); return c
+
 def ok_email(x): return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$",str(x).strip()))
 
 def norm_field(x):
@@ -181,41 +179,66 @@ def smtp_settings(credentials=None):
     return host,port,user,pw,ssl
 
 def mail(to,att,employee_id,employee_name,subject,body,extra_attachment=None,smtp_credentials=None):
-    host,port,user,pw,ssl=smtp_settings(smtp_credentials)
+    resend_api_key=os.getenv("RESEND_API_KEY","").strip()
+    if not resend_api_key:
+        raise RuntimeError("RESEND_API_KEY is not configured on the server.")
+
+    mail_from=os.getenv("MAIL_FROM","onboarding@resend.dev").strip()
+
     replacements={
         "{EMPLOYEE_ID}": employee_id,
         "{EMPLOYEE_NAME}": employee_name,
         "{EMAIL}": to,
     }
+
     rendered_subject=subject
     rendered_body=body
+
     for token,value in replacements.items():
         rendered_subject=rendered_subject.replace(token,value)
         rendered_body=rendered_body.replace(token,value)
-    m=EmailMessage(); m["Subject"]=rendered_subject; m["From"]=os.getenv("MAIL_FROM",user).strip(); m["To"]=to
-    m.set_content(rendered_body)
-    m.add_attachment(att.read_bytes(),maintype="application",subtype="pdf",filename=att.name)
-    if extra_attachment:
-        for extra_bytes,extra_name,extra_maintype,extra_subtype in extra_attachment:
-            m.add_attachment(
-                extra_bytes,
-                maintype=extra_maintype,
-                subtype=extra_subtype,
-                filename=extra_name
-            )
+
+    import base64
+
+    payload={
+        "from": mail_from,
+        "to": [to],
+        "subject": rendered_subject,
+        "html": rendered_body.replace("\n","<br>"),
+        "attachments":[
+            {
+                "filename": att.name,
+                "content": base64.b64encode(att.read_bytes()).decode("utf-8"),
+            }
+        ],
+    }
+
+    for extra_bytes,extra_name,extra_maintype,extra_subtype in extra_attachment or []:
+        payload["attachments"].append({
+            "filename": extra_name,
+            "content": base64.b64encode(extra_bytes).decode("utf-8"),
+        })
+
+    data=json.dumps(payload).encode("utf-8")
+
+    req=urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=data,
+        headers={
+            "Authorization": f"Bearer {resend_api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
     try:
-        if ssl:
-            with smtplib.SMTP_SSL(host,port,timeout=20) as s: s.login(user,pw); s.send_message(m)
-        else:
-            with smtplib.SMTP(host,port,timeout=20) as s: s.starttls(); s.login(user,pw); s.send_message(m)
-    except socket.gaierror as e:
-        raise RuntimeError(f"SMTP server cannot be found: '{host}'. Check SMTP_HOST. Do not include https://, :port, or spaces. For Gmail use smtp.gmail.com with port 587.") from e
-    except TimeoutError as e:
-        raise RuntimeError(f"Could not connect to SMTP server '{host}:{port}'. Check the host, port, firewall, and internet connection.") from e
-    except smtplib.SMTPAuthenticationError as e:
-        raise RuntimeError("SMTP login failed. Check SMTP_USER and use a Google App Password (not your normal Gmail password) for Gmail.") from e
-    except smtplib.SMTPException as e:
-        raise RuntimeError(f"SMTP error from {host}:{port}: {e}") from e
+        with urllib.request.urlopen(req,timeout=30) as response:
+            response.read()
+    except urllib.error.HTTPError as e:
+        detail=e.read().decode("utf-8",errors="replace")
+        raise RuntimeError(f"Resend API error: {detail}")
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"Resend connection error: {e.reason}")
 
 def merge_data(row, merge_fields):
     raw={str(k):("" if pd.isna(v) else str(v)) for k,v in row.to_dict().items()}
