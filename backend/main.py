@@ -179,11 +179,13 @@ def smtp_settings(credentials=None):
     return host,port,user,pw,ssl
 
 def mail(to,att,employee_id,employee_name,subject,body,extra_attachment=None,smtp_credentials=None):
-    resend_api_key=os.getenv("RESEND_API_KEY","").strip()
-    if not resend_api_key:
-        raise RuntimeError("RESEND_API_KEY is not configured on the server.")
+    brevo_api_key=os.getenv("BREVO_API_KEY","").strip()
+    if not brevo_api_key:
+        raise RuntimeError("BREVO_API_KEY is not configured on the server.")
 
-    mail_from=os.getenv("MAIL_FROM","onboarding@resend.dev").strip()
+    mail_from=os.getenv("MAIL_FROM","").strip()
+    if not mail_from:
+        raise RuntimeError("MAIL_FROM is not configured on the server.")
 
     replacements={
         "{EMPLOYEE_ID}": employee_id,
@@ -193,40 +195,39 @@ def mail(to,att,employee_id,employee_name,subject,body,extra_attachment=None,smt
 
     rendered_subject=subject
     rendered_body=body
-
     for token,value in replacements.items():
         rendered_subject=rendered_subject.replace(token,value)
         rendered_body=rendered_body.replace(token,value)
 
     import base64
 
-    payload={
-        "from": mail_from,
-        "to": [to],
-        "subject": rendered_subject,
-        "html": rendered_body.replace("\n","<br>"),
-        "attachments":[
-            {
-                "filename": att.name,
-                "content": base64.b64encode(att.read_bytes()).decode("utf-8"),
-            }
-        ],
-    }
+    attachments=[{
+        "name": att.name,
+        "content": base64.b64encode(att.read_bytes()).decode("utf-8"),
+    }]
 
     for extra_bytes,extra_name,extra_maintype,extra_subtype in extra_attachment or []:
-        payload["attachments"].append({
-            "filename": extra_name,
+        attachments.append({
+            "name": extra_name,
             "content": base64.b64encode(extra_bytes).decode("utf-8"),
         })
 
-    data=json.dumps(payload).encode("utf-8")
+    payload={
+        "sender": {"email": mail_from},
+        "to": [{"email": to}],
+        "subject": rendered_subject,
+        "htmlContent": rendered_body.replace("\n","<br>"),
+        "attachment": attachments,
+    }
 
+    data=json.dumps(payload).encode("utf-8")
     req=urllib.request.Request(
-        "https://api.resend.com/emails",
+        "https://api.brevo.com/v3/smtp/email",
         data=data,
         headers={
-            "Authorization": f"Bearer {resend_api_key}",
+            "api-key": brevo_api_key,
             "Content-Type": "application/json",
+            "Accept": "application/json",
             "User-Agent": "MailMerge-FNA-EPGPLC/1.0",
         },
         method="POST",
@@ -237,9 +238,9 @@ def mail(to,att,employee_id,employee_name,subject,body,extra_attachment=None,smt
             response.read()
     except urllib.error.HTTPError as e:
         detail=e.read().decode("utf-8",errors="replace")
-        raise RuntimeError(f"Resend API error: {detail}")
+        raise RuntimeError(f"Brevo API error: {detail}")
     except urllib.error.URLError as e:
-        raise RuntimeError(f"Resend connection error: {e.reason}")
+        raise RuntimeError(f"Brevo connection error: {e.reason}")
 
 def merge_data(row, merge_fields):
     raw={str(k):("" if pd.isna(v) else str(v)) for k,v in row.to_dict().items()}
