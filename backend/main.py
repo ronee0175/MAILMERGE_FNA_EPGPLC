@@ -227,6 +227,7 @@ def mail(to,att,employee_id,employee_name,subject,body,extra_attachment=None,smt
         headers={
             "Authorization": f"Bearer {resend_api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "MailMerge-FNA-EPGPLC/1.0",
         },
         method="POST",
     )
@@ -371,18 +372,9 @@ def send_stream():
     """
     provider=request.form.get("email_provider","outlook").strip().lower()
     if provider not in ("outlook","gmail","others"): provider="others"
-    smtp_host=request.form.get("smtp_host","").strip()
-    smtp_email=request.form.get("smtp_email","").strip()
-    smtp_password=request.form.get("smtp_password","").strip()
     smtp_port=request.form.get("smtp_port","587").strip() or "587"
+    saved_cred=None
     smtp_ssl=request.form.get("smtp_ssl","0").strip()=="1"
-    if not smtp_host or not smtp_email or not smtp_password:
-        return jsonify(ok=False, message="SMTP Host, SMTP Email and SMTP Password are required."), 400
-    if not ok_email(smtp_email):
-        return jsonify(ok=False, message="Please enter a valid SMTP email address."), 400
-    try: int(smtp_port)
-    except ValueError: return jsonify(ok=False, message="SMTP Port must be a number."), 400
-    client_id, saved_cred=_save_credentials_for_client(provider,smtp_host,smtp_email,smtp_password,int(smtp_port),smtp_ssl)
     e=request.files.get("excel"); t=request.files.get("template")
     if not e or not t:
         return jsonify(ok=False, message="Excel and Word files are required."), 400
